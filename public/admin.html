@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>INDEX Search — Admin</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #0b1020;
+      color: #edf2ff;
+      font-family: Arial, sans-serif;
+    }
+    header {
+      padding: 22px 6%;
+      background: #111a30;
+      border-bottom: 1px solid #26334d;
+    }
+    header h1 { margin: 0; font-size: 24px; }
+    header p { color: #aab7d0; margin-bottom: 0; }
+    main { max-width: 1100px; margin: 30px auto; padding: 0 18px; }
+    .panel {
+      background: #111a30;
+      border: 1px solid #26334d;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 12px;
+      border-radius: 7px;
+      font-size: 14px;
+    }
+    input {
+      background: #0b1020;
+      color: white;
+      border: 1px solid #354563;
+      width: 100%;
+      margin: 12px 0;
+    }
+    button {
+      background: #6485ff;
+      color: white;
+      border: 0;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button.secondary { background: #34425e; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+    .metric {
+      background: #18243d;
+      padding: 18px;
+      border-radius: 10px;
+    }
+    .metric p { color: #aab7d0; margin: 0 0 10px; }
+    .metric strong { font-size: 25px; }
+    #message { color: #aab7d0; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td {
+      padding: 13px 10px;
+      border-bottom: 1px solid #26334d;
+      overflow-wrap: anywhere;
+    }
+    th { color: #aab7d0; }
+    a { color: #91a9ff; }
+    @media (max-width: 600px) {
+      header h1 { font-size: 20px; }
+      main { margin-top: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>INDEX Search</h1>
+    <p>Administration dashboard</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Admin Sign In</h2>
+      <label for="adminKey">Admin Key</label>
+      <input id="adminKey" type="password"
+             placeholder="Enter INDEX_ADMIN_KEY"
+             autocomplete="current-password">
+      <button id="signIn">Sign In</button>
+      <button id="signOut" class="secondary">Sign Out</button>
+      <p id="message" role="status">Sign in to load dashboard data.</p>
+    </section>
+
+    <section class="metrics">
+      <div class="metric">
+        <p>API Status</p>
+        <strong id="status">—</strong>
+      </div>
+      <div class="metric">
+        <p>Indexed Pages</p>
+        <strong id="indexedPages">—</strong>
+      </div>
+      <div class="metric">
+        <p>Search Requests</p>
+        <strong id="searchRequests">—</strong>
+      </div>
+      <div class="metric">
+        <p>Crawl Requests</p>
+        <strong id="crawlRequests">—</strong>
+      </div>
+      <div class="metric">
+        <p>Extract Requests</p>
+        <strong id="extractRequests">—</strong>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top:20px">
+      <h2>Indexed Pages</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>URL</th>
+              <th>Last Crawled</th>
+            </tr>
+          </thead>
+          <tbody id="pages">
+            <tr><td colspan="3">Sign in to load pages.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const keyInput = document.getElementById("adminKey");
+    const message = document.getElementById("message");
+
+    function showMessage(text) {
+      message.textContent = text;
+    }
+
+    function resetDashboard() {
+      document.getElementById("status").textContent = "—";
+      document.getElementById("indexedPages").textContent = "—";
+      document.getElementById("searchRequests").textContent = "—";
+      document.getElementById("crawlRequests").textContent = "—";
+      document.getElementById("extractRequests").textContent = "—";
+      document.getElementById("pages").replaceChildren();
+
+      const row = document.getElementById("pages").insertRow();
+      const cell = row.insertCell();
+      cell.colSpan = 3;
+      cell.textContent = "Sign in to load pages.";
+    }
+
+    async function loadDashboard() {
+      const key = keyInput.value.trim();
+
+      if (!key) {
+        showMessage("Enter your admin key.");
+        return;
+      }
+
+      showMessage("Loading dashboard...");
+
+      try {
+        const response = await fetch("/admin/api/stats", {
+          headers: { "x-admin-key": key },
+          cache: "no-store"
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to sign in.");
+        }
+
+        document.getElementById("status").textContent =
+          data.status ?? "Unknown";
+        document.getElementById("indexedPages").textContent =
+          data.indexedPages ?? 0;
+        document.getElementById("searchRequests").textContent =
+          data.searchRequests ?? 0;
+        document.getElementById("crawlRequests").textContent =
+          data.crawlRequests ?? 0;
+        document.getElementById("extractRequests").textContent =
+          data.extractRequests ?? 0;
+
+        const tbody = document.getElementById("pages");
+        tbody.replaceChildren();
+
+        if (!Array.isArray(data.pages) || data.pages.length === 0) {
+          const row = tbody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 3;
+          cell.textContent = "No indexed pages yet.";
+        } else {
+          for (const page of data.pages) {
+            const row = tbody.insertRow();
+
+            const title = row.insertCell();
+            title.textContent = page.title || "Untitled";
+
+            const urlCell = row.insertCell();
+
+            if (page.url) {
+              try {
+                const parsedUrl = new URL(page.url);
+
+                if (
+                  parsedUrl.protocol === "http:" ||
+                  parsedUrl.protocol === "https:"
+                ) {
+                  const link = document.createElement("a");
+                  link.href = parsedUrl.href;
+                  link.target = "_blank";
+                  link.rel = "noopener noreferrer";
+                  link.textContent = page.url;
+                  urlCell.appendChild(link);
+                } else {
+                  urlCell.textContent = page.url;
+                }
+              } catch {
+                urlCell.textContent = page.url;
+              }
+            } else {
+              urlCell.textContent = "—";
+            }
+
+            const dateCell = row.insertCell();
+            dateCell.textContent = page.crawledAt
+              ? String(page.crawledAt)
+              : "—";
+          }
+        }
+
+        showMessage("Signed in. Dashboard data loaded.");
+      } catch (error) {
+        showMessage(error.message || "Unable to load dashboard.");
+      }
+    }
+
+    document.getElementById("signIn")
+      .addEventListener("click", loadDashboard);
+
+    document.getElementById("signOut").addEventListener("click", () => {
+      keyInput.value = "";
+      resetDashboard();
+      showMessage("Signed out.");
+    });
+
+    keyInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") loadDashboard();
+    });
+  </script>
+</body>
+</html>
